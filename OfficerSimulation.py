@@ -60,8 +60,8 @@ def get_station_id_by_coords(lat, lon, station_locations, threshold=0.0001):
 #Loading the data
 
 # Load the stations data from an Excel file
-incident_data = pd.read_excel('../Data/data_Modifyed1.xlsx', sheet_name='Incident data week 1')
-stations_df = pd.read_excel('../Data/data.xlsx', sheet_name='Stations')
+incident_data = pd.read_excel('../../Data/data_Modifyed1.xlsx', sheet_name='Incident data week 1')
+stations_df = pd.read_excel('../../Data/data.xlsx', sheet_name='Stations')
 
 incident_data['Latitude'] = incident_data['Latitude'].astype(float)
 incident_data['Longitude'] = incident_data['Longitude'].astype(float)
@@ -552,12 +552,13 @@ def simulate_shift(day, shift_name, incident_data, station_locations, leftover_i
 
 # %%
 # Day Simulation
-def SimulateDay(day, solution, leftover_incidents):
+def SimulateDay(day, solution, leftover_incidents=pd.DataFrame()):
         shifts = ['Early', 'Day', 'Night']
         shift_lengths = {'Early': 3, 'Day': 3, 'Night': 3}
         shift_solutions = split_solution_by_shifts(solution, shift_lengths)
         Officer_Idle_Time = []
         Avg_incident_time_elapsed = 0
+
         
         Deadline_Met = {
                 'Immediate':0,
@@ -606,6 +607,7 @@ def SimulateDay(day, solution, leftover_incidents):
                 'Avg_Responce_times': Avg_Responce_times,
                 'Avg_incident_time_elapsed':Avg_incident_time_elapsed}
 
+"""
 def SimulateWeek(Solution):
     Avg_Responce_times = []
     Avg_incident_time_elapsed = []
@@ -630,7 +632,7 @@ def SimulateWeek(Solution):
                 'Avg_Responce_times': Avg_Responce_times,
                 'Avg_incident_time_elapsed':Avg_incident_time_elapsed}    
 
-
+"""
 
 
 
@@ -774,16 +776,14 @@ def evaluate_fitness(day, solution):
     weight_Immediate_incidents_responded = 0.4 # change these accordingly
     weight_Prompt_incidents_responded = 0.3
     weight_Standard_incidents_responded = 0.2
-    weight_idle_time = 0.151515
-    Avg_Responce_time_weight = 0.151515
-    avg_incident_time_elapsed_weight = 0.151515
+    weight_idle_time = 0.5
+    Avg_Responce_time_weight = 0.3
+    avg_incident_time_elapsed_weight = 0.5
 
-    # Calculate the fitness score
-    fitness_score = (normalized_incidents_responded['Immediate'] * weight_Immediate_incidents_responded) + \
-                (normalized_incidents_responded['Prompt'] * weight_Prompt_incidents_responded) + \
-                (normalized_incidents_responded['Standard'] * weight_Standard_incidents_responded) + \
-                (normalized_idle_time * weight_idle_time) + \
-                (normalized_responce_time * Avg_Responce_time_weight) + \
+    # Calculate the fitness score - dirastically changes
+    # (normalized_responce_time * Avg_Responce_time_weight) + \
+
+    fitness_score = (normalized_idle_time * weight_idle_time) + \
                 (normalized_incident_time_elapsed * avg_incident_time_elapsed_weight)  
 
     return fitness_score
@@ -897,7 +897,7 @@ def Plot_save(best_fitnesses, day):
     plt.xlabel('Generation')
     plt.ylabel('Fitness Score')
     plt.grid(True)
-    plt.savefig(f'../img/Fitness Scores Generations/Aujusted Shift Day {day}.png')  # Save the plot as a PNG file
+    plt.savefig(f'../../img/Fitness Scores Generations/Day_{day}.png')  # Save the plot as a PNG file
     plt.close()  
 
 def largest(best_fitnesses):
