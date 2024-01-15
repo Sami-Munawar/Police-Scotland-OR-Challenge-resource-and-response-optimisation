@@ -476,8 +476,8 @@ def handle_incident(officer, incident, current_time, shift_params, day, travel_t
     if ((travel_time + incident_time_elapsed)/60) >= Get_response_deadline(incident['Priority']):
         Hours, Minutes = decimal_to_time((incident_time_elapsed + travel_time)/60)
         print(f"Officer Has not completed Incident within deadline: {(incident['Priority'])} : {Get_response_deadline(incident['Priority'])} Hours, Time taken to Respond: {Hours} Hours {Minutes} Minutes\n")
-        return {'Deadline_met': 0, 'Responce_time': (travel_time+handling_time)}
-    return {'Deadline_met': 1, 'Responce_time': (travel_time+handling_time)} 
+        return {'Deadline_met': 0, 'Responce_time': (travel_time+handling_time), 'incident_time_elapsed':incident_time_elapsed}
+    return {'Deadline_met': 1, 'Responce_time': (travel_time+handling_time), 'incident_time_elapsed':incident_time_elapsed} 
 
 def simulate_shift(day, shift_name, incident_data, station_locations, leftover_incidents, Deadline_Met, total_incidents, Officers):
     shift_params = SHIFT_PARAMS[shift_name]
@@ -499,11 +499,10 @@ def simulate_shift(day, shift_name, incident_data, station_locations, leftover_i
         (incident_data['Hour'] <= shift_params['end_hour'])
     ].sort_values(by=['Hour', 'Priority'], ascending=[True, True])
 
-    incidents_responded = 0
-    incidents_missed = 0
-    current_time = Time(shift_name).GetTime() # current time is in minutes
+    current_time = Time(shift_name).GetTime() # current time is in minutes, resets on day
     incidents_in_shift = incidents_in_shift.copy()
     Responce_time = []
+    incident_time_elapsed = []
 
     # complete incidents for every hour in the shift
     for i in range(shift_params['end_hour'] - shift_params['start_hour']): # should always equal 7
@@ -512,8 +511,7 @@ def simulate_shift(day, shift_name, incident_data, station_locations, leftover_i
         incidents_in_hour = pd.concat([incidents_in_hour, leftover_incidents]).drop_duplicates().reset_index(drop=True)
         leftover_incidents = pd.DataFrame()  # Reset the leftover incidents
 
-        # Priority Logic Hourly - (Optmisation Part)
-
+        # Priority Logic Hourly - (Redundent Part)
         # incidents_in_hour = PriorityLogicHourly(incidents_in_hour, current_time)
         
         for j in range(1, 61): # iterate every minute of the hour
@@ -529,6 +527,7 @@ def simulate_shift(day, shift_name, incident_data, station_locations, leftover_i
                     Deadline_Met[incident['Priority']] += CompletedIncident['Deadline_met']
                     Responce_time.append(CompletedIncident['Responce_time']) 
                     total_incidents[incident['Priority']] += 1
+                    incident_time_elapsed.append(CompletedIncident['incident_time_elapsed'])
                     incidents_in_hour.drop(index, inplace=True)
 
             if j == 60: 
@@ -538,24 +537,27 @@ def simulate_shift(day, shift_name, incident_data, station_locations, leftover_i
 
     Officer_Idle_Time = calculate_officers_idle_times(officers)
     Avg_Responce_times = calculate_average(Responce_time)
+    Avg_incident_time_elapsed = calculate_average(incident_time_elapsed)
 
     return {
         'total_incidents': total_incidents, 
         'Priority Deadline Met': Deadline_Met,
         'leftover_incidents': leftover_incidents,  
         'Officer_Idle_Time': Officer_Idle_Time,
-        'Avg_Responce_times': Avg_Responce_times
+        'Avg_Responce_times': Avg_Responce_times,
+        'Avg_incident_time_elapsed': Avg_incident_time_elapsed
+        
     }
 
 
 # %%
 # Day Simulation
-def SimulateDay(day, solution):
+def SimulateDay(day, solution, leftover_incidents):
         shifts = ['Early', 'Day', 'Night']
-        leftover_incidents = pd.DataFrame()
         shift_lengths = {'Early': 3, 'Day': 3, 'Night': 3}
         shift_solutions = split_solution_by_shifts(solution, shift_lengths)
         Officer_Idle_Time = []
+        Avg_incident_time_elapsed = 0
         
         Deadline_Met = {
                 'Immediate':0,
@@ -577,6 +579,7 @@ def SimulateDay(day, solution):
                 total_incidents = data['total_incidents']
                 Officer_Idle_Time = Officer_Idle_Time + data['Officer_Idle_Time'] 
                 Avg_Responce_times = data['Avg_Responce_times']
+                Avg_incident_time_elapsed = data['Avg_incident_time_elapsed']
 
 
         Percentageincidents = {  # total incidents the officers were able to respond to
@@ -600,14 +603,45 @@ def SimulateDay(day, solution):
                 'Deadline_Met':Deadline_Met,
                 'officers_idle_time': Officer_Idle_Time,
                 'Avg_officers_idle_time': calculate_average(Officer_Idle_Time),
-                'Avg_Responce_times': Avg_Responce_times}
+                'Avg_Responce_times': Avg_Responce_times,
+                'Avg_incident_time_elapsed':Avg_incident_time_elapsed}
+
+def SimulateWeek(Solution):
+    Avg_Responce_times = []
+    Avg_incident_time_elapsed = []
+    Avg_officers_idle_time = []
+    leftover_incidents = pd.DataFrame()
+
+    for i in range(1,8):
+        data = SimulateDay(1, Solution, leftover_incidents)
+        Avg_Responce_times.append(data['Avg_incident_time_elapsed'])
+        Avg_incident_time_elapsed.append(data['Avg_Responce_times'])
+        Avg_officers_idle_time.append(data['Avg_officers_idle_time'])
+        leftover_incidents = data['leftover_incidents']
+        
+    
+        return {'percentage_incidents_responded':Percentageincidents,
+                'Normal_percentage_incidents_responded':NormalPercentageincidents,
+                'leftover_incidents':leftover_incidents,
+                'total_incidents':total_incidents,
+                'Deadline_Met':Deadline_Met,
+                'officers_idle_time': Officer_Idle_Time,
+                'Avg_officers_idle_time': calculate_average(Officer_Idle_Time),
+                'Avg_Responce_times': Avg_Responce_times,
+                'Avg_incident_time_elapsed':Avg_incident_time_elapsed}    
+
+
+
+
+
+        
 
 def DisplaySimResults(SimulationResults):
         print(f"Deadline_met: {SimulationResults['Deadline_Met']}")
         print(f"total incidents solved: {SimulationResults['total_incidents']}")
-        print(f"Idle_time: {calculate_average(SimulationResults['officers_idle_time'])}")
+        print(f"Avg_Idle_time: {calculate_average(SimulationResults['officers_idle_time'])}")
         print(f"Avg_Responce_time: {SimulationResults['Avg_Responce_times']}")
-
+        print(f"Avg_incident_time_elapsed: {SimulationResults['Avg_incident_time_elapsed']}")
         for i in priority:
                 print(f"Percentage of Incidents: {i} - {round(SimulationResults['percentage_incidents_responded'][i], 2)}%") 
 
@@ -701,6 +735,7 @@ def generate_random_allocation(max_officers_early=15, max_officers_day=25, max_o
         for i in range(remaining_officers):
             shift_allocation[random.randint(0, 2)] += 1  # Randomly distribute remaining officers
         return shift_allocation
+    
 
     # Create the complete allocation list for all shifts
     allocation = []
@@ -708,12 +743,16 @@ def generate_random_allocation(max_officers_early=15, max_officers_day=25, max_o
     allocation.extend(allocate_for_shift(max_officers_day))
     allocation.extend(allocate_for_shift(max_officers_night))
     return redistribute_officers(allocation, [max_officers_early, max_officers_day, max_officers_night])
-
     
 
 
 # %%
 def evaluate_fitness(day, solution):
+
+    #simulate week
+    for i in range(1,8):
+        SimulateDay(i, solution)   
+
     # Simulate the shift with the given solution
     simulation_result = SimulateDay(day, solution) 
 
@@ -721,26 +760,31 @@ def evaluate_fitness(day, solution):
     normalized_incidents_responded = simulation_result['Normal_percentage_incidents_responded']
     Avg_Responce_time = simulation_result['Avg_Responce_times']
     avg_officers_idle_time = calculate_average(simulation_result['officers_idle_time'])
+    incident_time_elapsed = simulation_result['Avg_incident_time_elapsed']
     max_possible_idle_time = (7*60) # in minutes
     max_possible_Responce_time = (3*60) # in minutes
+    max_possible_incident_time_elapsed = (7*60)
 
     # Normalize metrics (assuming you have a way to normalize based on your data range)
     normalized_idle_time = 1 - (avg_officers_idle_time / max_possible_idle_time)  
     normalized_responce_time = 1 - (Avg_Responce_time / max_possible_Responce_time)
+    normalized_incident_time_elapsed = 1 - (incident_time_elapsed / max_possible_incident_time_elapsed)
 
     # Assign weights to each component (these weights can be adjusted based on importance)
-    weight_Immediate_incidents_responded = 0.075 # change these accordingly
-    weight_Prompt_incidents_responded = 0.2
-    weight_Standard_incidents_responded = 0.225
-    weight_idle_time = 0.25
-    Avg_Responce_time_weight = 0.25
+    weight_Immediate_incidents_responded = 0.4 # change these accordingly
+    weight_Prompt_incidents_responded = 0.3
+    weight_Standard_incidents_responded = 0.2
+    weight_idle_time = 0.151515
+    Avg_Responce_time_weight = 0.151515
+    avg_incident_time_elapsed_weight = 0.151515
 
     # Calculate the fitness score
     fitness_score = (normalized_incidents_responded['Immediate'] * weight_Immediate_incidents_responded) + \
                 (normalized_incidents_responded['Prompt'] * weight_Prompt_incidents_responded) + \
                 (normalized_incidents_responded['Standard'] * weight_Standard_incidents_responded) + \
                 (normalized_idle_time * weight_idle_time) + \
-                (normalized_responce_time * Avg_Responce_time_weight) 
+                (normalized_responce_time * Avg_Responce_time_weight) + \
+                (normalized_incident_time_elapsed * avg_incident_time_elapsed_weight)  
 
     return fitness_score
 
@@ -853,7 +897,7 @@ def Plot_save(best_fitnesses, day):
     plt.xlabel('Generation')
     plt.ylabel('Fitness Score')
     plt.grid(True)
-    plt.savefig(f'../img/Fitness Scores Generations/Day_{day}.png')  # Save the plot as a PNG file
+    plt.savefig(f'../img/Fitness Scores Generations/Aujusted Shift Day {day}.png')  # Save the plot as a PNG file
     plt.close()  
 
 def largest(best_fitnesses):
@@ -885,8 +929,8 @@ def find_closest_number_index(numbers, target):
 # Run GA function
 
 def Run_Analyze(day):
-    Gen = 50
-    init_pop = 100
+    Gen = 10
+    init_pop = 20
     initial_population, best_solutions, best_fitnesses = GenAl(day, Gen, init_pop)
 
     # Analyze the results
@@ -899,20 +943,24 @@ def Run_Analyze(day):
 
     # idle times are weard
 
-    string = f"""\textbf{{Day:}} {day} \\
-    \textbf{{Number of Generations:}} {Gen} \\
-    \textbf{{Initial population size:}} {init_pop} \\
-    \textbf{{Best solution:}} {best_solutions[largest(best_fitnesses)]} \\
-    \textbf{{Best fitness:}} {max(best_fitnesses)} \\
-    \textbf{{Approximate Stable Solution:}} {best_solutions[Index_of_Stable]}\\
-    \textbf{{Approximate Stable Fitness:}} {best_fitnesses[Index_of_Stable]} \\
-    \textbf{{final Solution:}} {best_solutions[len(best_solutions)-1]} \\
-    \textbf{{Idle time:}} {sim['Avg_officers_idle_time']} Minutes \\
-    \textbf{{Average Response time:}} {sim['Avg_Responce_times']} Minutes \\
-    \textbf{{Percentage of Resolved Incidents:}} {sim['percentage_incidents_responded']} \\
-    \quad Standard - {sim['percentage_incidents_responded']['Immediate']}\% \\
-    \quad Prompt - {sim['percentage_incidents_responded']['Prompt']}\% \\
-    \quad Immediate - {sim['percentage_incidents_responded']['Standard']}\% \\""" 
+    string = f"""\\textbf{{Day:}} {day} \\\n
+    \\textbf{{Number of Generations:}} {Gen} \\\n
+    \\textbf{{Initial population size:}} {init_pop} \\\n
+    \\textbf{{Best solution:}} {best_solutions[largest(best_fitnesses)]} \\\n
+    \\textbf{{Stations No:}} [Station 1, Station 2, Station 3] \\\n
+	\\textbf{{Early:}} [{best_solutions[largest(best_fitnesses)][0]}, {best_solutions[largest(best_fitnesses)][1]}, {best_solutions[largest(best_fitnesses)][2]}] \\\n
+	\\textbf{{Day:}} [{best_solutions[largest(best_fitnesses)][3]}, {best_solutions[largest(best_fitnesses)][4]}, {best_solutions[largest(best_fitnesses)][5]}] \\\n
+	\\textbf{{Night:}} [{best_solutions[largest(best_fitnesses)][6]}, {best_solutions[largest(best_fitnesses)][7]}, {best_solutions[largest(best_fitnesses)][8]}] \\\n
+    \\textbf{{Best fitness:}} {max(best_fitnesses)} \\\n
+    \\textbf{{Approximate Stable Solution:}} {best_solutions[Index_of_Stable]}\\\n
+    \\textbf{{Approximate Stable Fitness:}} {best_fitnesses[Index_of_Stable]} \\\n
+    \\textbf{{final Solution:}} {best_solutions[len(best_solutions)-1]} \\\n
+    \\textbf{{Idle time:}} {sim['Avg_officers_idle_time']} Minutes \\\n
+    \\textbf{{Average Response time:}} {sim['Avg_Responce_times']} Minutes \\\n
+    \\textbf{{Percentage of Resolved Incidents:}} {sim['percentage_incidents_responded']} \\\n
+    \quad Standard - {sim['percentage_incidents_responded']['Standard']}\% \\\n
+    \quad Prompt - {sim['percentage_incidents_responded']['Prompt']}\% \\\n
+    \quad Immediate - {sim['percentage_incidents_responded']['Immediate']}\% \\\n """ 
 
     return (string)
 
