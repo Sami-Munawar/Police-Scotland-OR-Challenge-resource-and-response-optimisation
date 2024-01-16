@@ -732,7 +732,7 @@ max_officers_night = SHIFT_PARAMS['Night']['total_officers']
 def generate_random_allocation(max_officers_early=15, max_officers_day=25, max_officers_night=40):
     # Ensures at least one officer is allocated for each station in a shift
     def allocate_for_shift(max_officers):
-        shift_allocation = [1] * 3  # Start by allocating one officer to each station
+        shift_allocation = [2] * 3  # Start by allocating one officer to each station
         remaining_officers = max_officers - 3  # Adjust remaining officers count
         for i in range(remaining_officers):
             shift_allocation[random.randint(0, 2)] += 1  # Randomly distribute remaining officers
@@ -773,11 +773,7 @@ def evaluate_fitness(day, solution):
     normalized_incident_time_elapsed = 1 - (incident_time_elapsed / max_possible_incident_time_elapsed)
 
     # Assign weights to each component (these weights can be adjusted based on importance)
-    weight_Immediate_incidents_responded = 0.4 # change these accordingly
-    weight_Prompt_incidents_responded = 0.3
-    weight_Standard_incidents_responded = 0.2
     weight_idle_time = 0.5
-    Avg_Responce_time_weight = 0.3
     avg_incident_time_elapsed_weight = 0.5
 
     # Calculate the fitness score - dirastically changes
@@ -929,8 +925,8 @@ def find_closest_number_index(numbers, target):
 # Run GA function
 
 def Run_Analyze(day):
-    Gen = 10
-    init_pop = 20
+    Gen = 50
+    init_pop = 100
     initial_population, best_solutions, best_fitnesses = GenAl(day, Gen, init_pop)
 
     # Analyze the results
